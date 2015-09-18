@@ -41,7 +41,7 @@ library(data.table)
 
 ```
 
-# Exploratory Analysis
+**Load the Data**
 
 ```{r}
 pmlTrain <- fread("pml-training.csv")
@@ -50,6 +50,8 @@ pmlTest <- fread("pml-testing.csv")
 ## Let's look at data
 pmlTrain <- tbl_dt(pmlTrain)
 ```
+
+# Exploratory Analysis
 
 **Let's check on basic properties of the data**
 
@@ -60,17 +62,12 @@ dim(pmlTrain)
 
  * What all columns are present
 ```{r}
-names(pmlTrain)
+names(pmlTrain[, 1:50, with=F])
 ```
 
  * Basic properties of Data (Mean, Min, Max etc)
 ```{r}
-summary(pmlTrain)
-```
-
- * Few rows of RAW data
-```{r}
-read.delim("pml-training.csv", sep="\n", nrows = 10)
+summary(pmlTrain[, 7:25, with=F])
 ```
 
 Through above quick glance, we can see that there are many variables which are not having values. Further observation of RAW data shows that many variables have values only when new_window variable is Yes. Hence, Let's observe data for new_window = Yes and No.
@@ -185,7 +182,7 @@ control <- trainControl(method="repeatedcv", number=2, repeats=2)
 
 ## Probability Based Model
 * **Naive Bayes**
-```{r cache=T}
+```{r cache=T, message=F, warning=F}
 
 ## Train and Plot a model
 #pmlTrain_prep$classe <- classe
@@ -204,7 +201,7 @@ confusionMatrix(classe, pmlTrain_pred)
 ## Neural Network Based Model
 
 * __Model Averaged Neural Network__
-```{r cache=T}
+```{r cache=T, message=F, warning=F}
 
 modelavNNET <- train(classe~., data=pmlTrain_prep, method="avNNet", trControl=control)
 save(modelavNNET, file = "modelavNNET.rda")
@@ -220,12 +217,12 @@ confusionMatrix(classe, pmlTrain_pred)
 ## Vector Machine Based Model
 
 -**Support Vector Machines with Radial Basis Function Kernel**
-```{r cache=T}
+```{r cache=T, message=F, warning=F}
 modelSVM <- train(classe~., data=pmlTrain_prep, method="svmRadial", trControl=control)
 save(modelSVM, file = "modelSVM.rda")
 pmlTrain_pred <- predict(modelSVM)
 ```
--**Performance**
+* **Performance**
 ```{r}
 plot(modelSVM)
 confusionMatrix(classe, pmlTrain_pred)
@@ -233,14 +230,14 @@ confusionMatrix(classe, pmlTrain_pred)
 
 ## Forest Based Model
 
--**Random Forest**
+* **Random Forest**
 
-```{r cache=T}
+```{r cache=T, message=F, warning=F}
 modelrf <- train(classe~., data=pmlTrain_prep, method="rf", trControl=control)
 save(modelrf, file = "modelRF.rda")
 pmlTrain_pred <- predict(modelrf)
 ```
--**Performance**
+* **Performance**
 
 ```{r}
 plot(modelrf)
@@ -261,7 +258,7 @@ dotplot(results)
 
 ## Prediction of Test Data
 
-```{r}
+```{r cache=TRUE, message=F, warning=F}
 pmlTest_pred_nb <- predict(modelNB, newdata = pmlTest_sel)
 pmlTest_pred_nnet <- predict(modelavNNET, newdata = pmlTest_sel)
 pmlTest_pred_svm <- predict(modelSVM, newdata = pmlTest_sel)
@@ -269,19 +266,33 @@ pmlTest_pred_rf <- predict(modelrf, newdata = pmlTest_sel)
 ```
 
 
--**Naive Bayes**
+* **Naive Bayes**
 ```{r}
 pmlTest_pred_nb
 ```
--**Neural Network**
+* **Neural Network**
 ```{r}
 pmlTest_pred_nnet
 ```
--**Support Vector Machine**
+* **Support Vector Machine**
 ```{r}
 pmlTest_pred_svm
 ```
--**Random Forest**
+* **Random Forest**
 ```{r}
 pmlTest_pred_rf
+```
+
+```{r echo=F, message=F, warning=F}
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(pmlTest_pred_rf)
+
 ```
