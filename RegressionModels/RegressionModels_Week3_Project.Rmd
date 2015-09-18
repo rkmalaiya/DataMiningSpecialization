@@ -1,0 +1,160 @@
+---
+title: "Evaluation of impact of various factors(specially transmission) on MPG in Cars"
+author: "Ritesh Kumar Malaiya"
+date: "Saturday, July 26, 2015"
+output:
+  html_document:
+    fig_caption: yes
+    keep_md: yes
+    number_sections: yes
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+# Evaluate Dataset
+
+```{r warning =FALSE, echo=FALSE}
+library(datasets)
+data(mtcars)
+```
+
+## FIT MODEL
+
+1) Identify variables having Linear relationship with MPG
+
+```{r warning =FALSE, echo=FALSE}
+mtcars$am[mtcars$am == 0] = "Automatic"
+mtcars$am[mtcars$am == 1] = "Manual"
+
+mtcars$am <- factor(mtcars$am)
+mtcars$gear <- factor(mtcars$gear)
+mtcars$vs <- factor(mtcars$vs)
+mtcars$cyl <- factor(mtcars$cyl)
+
+par(mfrow=c(2,5))
+
+mpg <- mtcars$mpg
+variables <- colnames(mtcars)
+variables <- variables[variables != 'mpg']
+
+
+for (i in 1: length(variables)) {
+  x <- variables[i]
+  plot(mpg~mtcars[,x],xlab = x, ylab = "Mileage Per Gallon (MPG)")
+  abline(lm(mpg~mtcars[,x]))
+}
+```
+
+Based on above graph, we can observe that **cyl, hp, drat, wt, vs, am, disp, carb, qsec** variables seems to have a better linear relationship with mpg compared to others. 
+
+
+### Identify Corelation
+
+Let's try to observe the correlation between these variables (except cyl, am and vs, since these are categorical variable)
+```{r echo=FALSE}
+variables <- c('hp', 'drat', 'wt', 'disp', 'carb', 'qsec')
+
+for (i in 1:length(variables)) {
+ mtcars[,i] <- as.numeric(mtcars[,i])  
+}
+
+sapply(variables,function(x) {
+  cor(y = mpg, x = mtcars[,x], use = "complete")
+})
+
+```
+
+At this point we have a fair idea how variables are correlated to mpg. (closer the correlation value to -1 or 1, better is the correlation)
+
+### Fit a Linear Model
+
+Here since, transmission is a factor variable we cannot efficiently fit linear model for mpg based on transmission only. Hence based on correlation score let's try to fit an initial model using cyl, hp, wt
+
+
+```{r message=FALSE, results='hide'}
+library(MASS)
+lm_initial <- lm(mpg ~ am + hp + drat + wt + disp + carb + qsec, data = mtcars)
+step <- stepAIC(lm_initial, direction="both")
+```
+
+Model recommendation by AIC
+
+```{r results='markup'}
+step$anova # display results
+```
+
+Let's cross check the model using Leaps package
+
+```{r warning=FALSE, message=FALSE, results='hide' }
+library(leaps)
+```
+```{r}
+leaps <- regsubsets(mpg ~ am + hp + drat + wt + disp + carb + qsec, data = mtcars, nbest = 3)
+par(mfrow=c(1,1))
+plot(leaps,scale="r2")
+
+```
+
+From above analysis, we can conclude that below should be the final model
+```{r}
+
+lm <- lm(mpg ~ am + wt + qsec, data = mtcars)
+```
+
+```{r echo=FALSE}
+par(mfrow=c(2,2))
+summary(lm)
+plot(lm)
+```
+
+### Check Relative Importance of the Model:
+```{r message = FALSE, warning = FALSE, results='hide'}
+
+library(relaimpo)
+
+calc.relimp(lm,type=c("lmg","last","first","pratt"), rela=TRUE)
+```
+
+```{r message = FALSE, results='hide'}
+boot <- boot.relimp(lm, b = 1000, type = c("lmg", "last", "first", "pratt"), rank = TRUE, diff = TRUE, rela = TRUE)
+# booteval.relimp(boot) # print result
+```
+
+```{r}
+plot(booteval.relimp(boot,sort=TRUE)) # plot result
+```
+
+we can also verify our model using chi square test whose value = ***`r 1-pchisq(2.306,26)`***. To cross check whether this can be a case of overfitting. Let's try to drop a variable
+
+```{r}
+
+drop1(lm, test="Chisq")
+
+```
+As we can see, we do not require to drop any variable.
+
+
+## Coefficients as per the model
+
+I guess now we can safely assume that below are the coef of this model
+
+```{r}
+
+lm$coef
+
+```
+
+
+# Questions of Interest
+
+- **Is an automatic or manual transmission better for MPG**
+From above coefficients we can understand that ***Manual Transmission is better*** than Automatic Transmission.
+
+
+- **Quantify the MPG difference between automatic and manual transmissions**
+If we keep weight and qsec constant (mean) then extra milega that will be provided by Manual Transmission as compared to Automatic is `r lm$coef[2]`. However, for every increase in weight by single unit gain in mileage is `r lm$coef[1] + lm$coef[2] + lm$coef[3]` and for every increase in qsec gain in mileage is `r lm$coef[1] + lm$coef[2] + lm$coef[4]` more than Automatic Transmission.
+
+# Executive Summary
+For a Car having same weigth Manual Transamission gives better mileage than Automatic Transmission. Also, for every increase in weight and / or qsec, corresponding increase in Manual transmission is in range of > `r lm$coef[2]` and < `r lm$coef[1] + lm$coef[2] + lm$coef[3]  + lm$coef[4]`
+

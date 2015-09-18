@@ -1,0 +1,83 @@
+---
+title: "Practical Machine Learning - Covariate Creation"
+author: "Ritesh Kumar Malaiya"
+date: "August 16, 2015"
+output: html_document
+---
+
+```{r}
+
+library(ISLR)
+library(caret)
+
+data("Wage")
+
+inTrain <- createDataPartition(y=Wage$wage, p = .7,list = F)
+
+training <- Wage[inTrain,]
+testing <- Wage[-inTrain, ]
+
+
+
+```
+
+Dummy Variables. Below is an example when a dummy variable is required.
+
+```{r}
+table(training$jobclass)
+```
+
+How to use dummy in Caret Package
+
+```{r}
+
+dummies <- dummyVars(wage ~ jobclass, data = training)
+
+head(dummies)
+
+```
+
+Removing Zero covariates
+
+```{r}
+nsv <- nearZeroVar(training, saveMetrics = T)
+nsv
+```
+
+Spline Basis - To fit curvy lines
+```{r}
+library(splines)
+bsBasis <- bs(training$age, df= 3)
+summary(bsBasis)
+```
+
+lm using spline basis
+```{r}
+lm1 <- lm(wage ~ bsBasis, data = training)
+plot(training$age, training$wage, pch = 19, cex = .5)
+points(training$age, predict(lm1, newdata=training), col = "red", pch = 19, cex = .5)
+```
+
+```{r}
+install.packages("ElemStatLearn")
+install.packages("randomForest")
+??randomForest
+library(ElemStatLearn)
+library(randomForest)
+library(caret)
+library(e1071)
+library(randomForest)
+data(vowel.train)
+data(vowel.test) 
+
+vowel = rbind(vowel.test,vowel.train)
+vowel$y = factor(vowel$y) 
+vowel.train$y = factor(vowel.train$y) 
+set.seed(33833)
+fit <- randomForest(y~.,data=vowel.train)
+imps <- varImp(fit)
+order(imps)
+
+
+
+```

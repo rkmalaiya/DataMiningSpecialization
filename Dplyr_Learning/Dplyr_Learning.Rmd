@@ -1,0 +1,11 @@
+---
+title: "Dplyr"
+author: "Ritesh Kumar Malaiya"
+date: "Saturday, August 08, 2015"
+output: html_document
+---
+
+
+```{r}
+summary(cars)
+```

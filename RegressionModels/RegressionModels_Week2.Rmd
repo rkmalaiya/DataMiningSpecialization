@@ -1,0 +1,128 @@
+---
+title: "RegressionModels_Week2"
+author: "Ritesh Kumar Malaiya"
+date: "Tuesday, July 14, 2015"
+output: html_document
+---
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+install.packages("UsingR")
+library(UsingR)
+data(diamond)
+library(ggplot2)
+
+g = ggplot(diamond, aes(x=carat, y=price))
+g = g + xlab("Mass (carats)")
+g = g + ylab("Singapore $")
+g = g + geom_point(size = 6, color = "black", alpha = 0.2)
+g = g + geom_point(size = 5, color = "blue", alpha = 0.2)
+g = g + geom_smooth(method="lm", color = "black")
+g
+
+fit <- lm(price~carat, data = diamond)
+
+coef(fit)
+summary(fit)
+
+```
+With Normalized data
+```{r}
+fit2 <- lm(price ~ (carat-mean(carat)), data = diamond)
+coef(fit2)
+
+```
+```{r}
+fit3 <- lm(price ~ I(carat*10), data = diamond)
+coef(fit3)
+```
+
+Let's see how to predict for new diamonds
+
+```{r}
+newx <- c(0.16,0.27,0.34)
+coef(fit)[1] + coef(fit)[2] * newx
+predict(fit, newdata = data.frame(carat = newx))
+predict(fit2, newdata = data.frame(carat = newx))
+predict(fit3, newdata = data.frame(carat = newx))
+
+```
+Lets get residuals
+
+```{r}
+
+y <- diamond$price; x <- diamond$carat; n <- length(y)
+
+fit <- lm(y~x)
+
+e <- resid(fit)
+yhat <- predict(fit)
+max(abs(e - (y-yhat)))
+
+'should be zero'
+sum(e) 
+
+'should be zero'
+sum(e*x) 
+
+```
+Lets see residuals plot
+
+```{r}
+plot(diamond$carat, diamond$price,
+     xlab = "Mass (carats)",
+     ylab = "Price (Singapore $)",
+     bg = "lightblue",
+     col = "black", 
+     cex = 1.1, pch = 21, frame = FALSE
+     )
+abline(fit, lwd = 2)
+for(i in 1:n)
+  lines(c(x[i],x[i]), c(y[i], yhat[i]), col="red", lwd = 2)
+
+
+
+
+plot(diamond$carat,e,
+     xlab = "Mass (carats)",
+     ylab = "Price Residuals (Singapore $)",
+     bg = "lightblue",
+     col = "black", 
+     cex = 1.1, pch = 21, frame = FALSE
+     )
+abline(h=0, lwd = 2)
+for(i in 1:n)
+  lines(c(x[i],x[i]), c(e[i], 0), col="red", lwd = 2)
+
+
+
+```
+
+```{r}
+e = c(resid(lm(price~1, data = diamond)), resid(lm(price~carat, data=diamond)))
+fit = factor(
+  c(
+    rep("Itc", nrow(diamond)),
+    rep("Itc, slope", nrow(diamond))
+    )
+  )
+
+g = ggplot(data.frame(e=e, fit=fit), aes(y=e,x=fit, fill=fit))
+g = g + geom_dotplot(binaxis='y', size=2,stackdir = 'center')
+g = g + xlab("Fitting Approach")
+g = g + ylab("Residual Price")
+
+g
+
+```
+
+Let's see sigma
+
+```{r}
+summary(fit)$sigma
+```
+
+

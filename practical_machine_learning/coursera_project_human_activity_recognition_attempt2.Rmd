@@ -1,0 +1,287 @@
+---
+title: "Machine Learning on HAR Dataset"
+author: "Ritesh Kumar Malaiya"
+date: "September 18, 2015"
+output: 
+  html_document: 
+    fig_caption: yes
+    keep_md: yes
+    toc: yes
+---
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+library(caret, quietly = T, warn.conflicts = F)
+library(e1071, quietly = T, warn.conflicts = F)
+if(!require(RANN)) {
+  install.packages("RANN")
+  require(RANN)
+}
+if(!require(doParallel)) {
+  install.packages("doParallel")
+  require(doParallel)
+}
+if(!require(klaR)) {
+  install.packages("klaR")
+  require(klaR)
+}
+if(!require(MASS)) {
+  install.packages("MASS")
+  require(MASS)
+}
+
+if(!require(outliers)) {
+  install.packages("outliers")
+  require(outliers)
+}
+
+
+library(dplyr)
+library(plyr)
+library(data.table)
+
+```
+
+# Exploratory Analysis
+
+```{r}
+pmlTrain <- fread("pml-training.csv")
+pmlTest <- fread("pml-testing.csv")
+
+## Let's look at data
+pmlTrain <- tbl_dt(pmlTrain)
+```
+
+**Let's check on basic properties of the data**
+
+ * How big the data is?
+```{r}
+dim(pmlTrain)
+```
+
+ * What all columns are present
+```{r}
+names(pmlTrain)
+```
+
+ * Basic properties of Data (Mean, Min, Max etc)
+```{r}
+summary(pmlTrain)
+```
+
+ * Few rows of RAW data
+```{r}
+read.delim("pml-training.csv", sep="\n", nrows = 10)
+```
+
+Through above quick glance, we can see that there are many variables which are not having values. Further observation of RAW data shows that many variables have values only when new_window variable is Yes. Hence, Let's observe data for new_window = Yes and No.
+
+
+```{r}
+
+pmlTrain_yes <- filter(pmlTrain, new_window == 'yes', num_window == 2)
+pmlTrain_no <- filter(pmlTrain, new_window == 'no', num_window == 2)
+
+head(pmlTrain_yes[,7:20, with=F], n= 1)
+head(pmlTrain_no[,7:20, with=F], n = 2)
+```
+
+
+**We can clearly see** that when *new_window is Y*, there are few columns that contains Summary of the Data, which is not present when *new_window = N*
+
+# Data Preprocessing
+
+## Remove Irrelevant Columns
+
+ Let's remove the columns which may noy be necessary for Model Learning purposes.
+
+ * First 7 columns are housekeeping data and can be ignored
+ * As we observed above, there are few columns which are summary columns and may not be fit for Model Learning purposes. Summary columns are *kurtosis_, skewness_, max_, min_, amplitude_, var_total_,  avg_, stddev_, var_* 
+
+```{r}
+pmlTrain_sel <- pmlTrain[ ,-(1:7), with = F]
+
+pmlTrain_sel <- dplyr::select(pmlTrain_sel, -contains("kurtosis_"), -contains("skewness_"), -contains("max_"), -contains("min_"),
+                              -contains("amplitude_"), -contains("var_total_"), -contains("avg_"), -contains("stddev_"), -contains("var_") )
+
+pmlTest_sel <- pmlTest[, names(pmlTrain_sel), with=F]
+
+classe <- as.factor(pmlTrain_sel$classe)
+pmlTrain_sel <- data.frame(sapply(select(pmlTrain_sel, -classe), as.numeric)) 
+
+
+#classe <- as.factor(pmlTest_sel$classe)
+pmlTest_sel <- data.frame(sapply(select(pmlTest_sel, -classe), as.numeric)) 
+#pmlTest_sel$classe <- classe
+```
+
+## Identify Preprocessing Alogrithms required
+
+### Outliers
+
+**Checking for Outliers**
+We can clearly see that there is quite difference in the measuring units of the data, also, we can see quite a few outliers. Hence we will perform *Centering and Scaling* while preprocesing data. However, we don't need other preprocessing like Imputation.
+
+```{r}
+boxplot(pmlTrain_sel)
+```
+
+**Removing Outliers**
+```{r}
+pmlTrain_sel <- rm.outlier(pmlTrain_sel, fill = T)
+```
+
+### Correlation between Data
+We can see that data is *almost* normally correlated. Hence we won't require preprocessing like BoxCox, YeoJohnson etc.
+```{r}
+cor <- cor(pmlTrain_sel, use = "p")
+hist(cor)
+```
+
+We haven't decided yet whether a proprocessing like PC transformation is required. We would decide on this after observing Model accuracy obtained.
+
+### Class Balance
+
+We can observe that Training data has more samples for Class A. We can either
+* Balance the data for each Class (R Package _'Unbalanced'_)
+* Carefully choose Model Training Algo which can handle class imbalance.
+
+Since the class are not highly imbalanced, hence we would rather choose a appropriate Modelling Algo than performing Class Balancing processing.
+
+```{r}
+pmlTrain_sel_temp <- pmlTrain_sel
+pmlTrain_sel_temp$classe <- classe
+table(pmlTrain_sel_temp$classe)
+
+```
+
+## Preprocessing Data 
+```{r}
+preObj <- preProcess(pmlTrain_sel, method = c("center","scale"))
+
+pmlTrain_prep <- predict(preObj, pmlTrain_sel)
+pmlTest_prep <- predict(preObj, pmlTest_sel)
+
+boxplot(pmlTrain_prep)
+```
+
+# Model Training
+
+We now need to decide which **model training Algorithm** should be choosen 
+
+Till now we have observed from our Data:
+```
+* Doesn't have much missing values (after removing irrelevant columns)
+* Is normally correlated
+* Class A is imbalanced as compared to other classes
+```
+
+Based on this observation, we can somewhat identify that a Probability based Algo, will might get biased towards class A and may not provide high accuracy. We will also, try Neural, Vector Machine and Forest based Algos.
+
+```{r}
+
+registerDoParallel(cores=2)
+control <- trainControl(method="repeatedcv", number=2, repeats=2)
+```
+
+## Probability Based Model
+* **Naive Bayes**
+```{r cache=T}
+
+## Train and Plot a model
+#pmlTrain_prep$classe <- classe
+modelNB <- train(classe~., data=pmlTrain_prep, method="nb", trControl=control)
+save(modelNB, file = "modelNB.rda")
+pmlTrain_pred <- predict(modelNB)
+```
+
+* **Performance**
+
+```{r}
+plot(modelNB)
+confusionMatrix(classe, pmlTrain_pred)
+```
+
+## Neural Network Based Model
+
+* __Model Averaged Neural Network__
+```{r cache=T}
+
+modelavNNET <- train(classe~., data=pmlTrain_prep, method="avNNet", trControl=control)
+save(modelavNNET, file = "modelavNNET.rda")
+pmlTrain_pred <- predict(modelavNNET)
+```
+
+* __Performance__
+```{r}
+plot(modelavNNET)
+confusionMatrix(classe, pmlTrain_pred)
+```
+
+## Vector Machine Based Model
+
+-**Support Vector Machines with Radial Basis Function Kernel**
+```{r cache=T}
+modelSVM <- train(classe~., data=pmlTrain_prep, method="svmRadial", trControl=control)
+save(modelSVM, file = "modelSVM.rda")
+pmlTrain_pred <- predict(modelSVM)
+```
+-**Performance**
+```{r}
+plot(modelSVM)
+confusionMatrix(classe, pmlTrain_pred)
+```
+
+## Forest Based Model
+
+-**Random Forest**
+
+```{r cache=T}
+modelrf <- train(classe~., data=pmlTrain_prep, method="rf", trControl=control)
+save(modelrf, file = "modelRF.rda")
+pmlTrain_pred <- predict(modelrf)
+```
+-**Performance**
+
+```{r}
+plot(modelrf)
+confusionMatrix(classe, pmlTrain_pred)
+```
+
+## Comparing Models
+
+```{r}
+results <- resamples(list(nb=modelNB, avNNet=modelavNNET, SVM=modelSVM, rf=modelrf))
+# summarize the distributions
+summary(results)
+# boxplots of results
+bwplot(results)
+# dot plots of results
+dotplot(results)
+```
+
+## Prediction of Test Data
+
+```{r}
+pmlTest_pred_nb <- predict(modelNB, newdata = pmlTest_sel)
+pmlTest_pred_nnet <- predict(modelavNNET, newdata = pmlTest_sel)
+pmlTest_pred_svm <- predict(modelSVM, newdata = pmlTest_sel)
+pmlTest_pred_rf <- predict(modelrf, newdata = pmlTest_sel)
+```
+
+
+-**Naive Bayes**
+```{r}
+pmlTest_pred_nb
+```
+-**Neural Network**
+```{r}
+pmlTest_pred_nnet
+```
+-**Support Vector Machine**
+```{r}
+pmlTest_pred_svm
+```
+-**Random Forest**
+```{r}
+pmlTest_pred_rf
+```

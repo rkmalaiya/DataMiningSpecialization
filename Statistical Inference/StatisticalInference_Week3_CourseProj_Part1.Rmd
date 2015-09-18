@@ -1,0 +1,61 @@
+---
+title: Investigate the exponential distribution in R and compare it with the Central
+  Limit Theorem
+author: "Ritesh Kumar Malaiya"
+date: "Tuesday, May 19, 2015"
+output:
+  html_document: default
+  pdf_document:
+    keep_tex: yes
+---
+
+
+# Overview
+In this project we are going to compare and understand behavior of Theoretical mean and sample mean for an exponential distribution. In order to achieve this we are going to have multiple simulation (~1000) on 40 exponentials assuming lambda = 0.02 for each simulation.
+
+# Simulations
+We will be using rexp function to generate exponential distribution. We will repeat this process 1000 times in sapply function calculating mean and variance for every run.
+
+```{r }
+
+noOfSimulations <- 1:1000
+lambda <- 0.2
+
+```
+
+#### Let's calculate Sample Mean and Variance.
+```{r}
+sampleMeansNVar <- sapply(noOfSimulations, function(x) {  
+  x <- rexp(40, lambda)
+  c(mean(x),var(x))
+})
+```
+
+#### Let's calculate Theoritical Mean and Theoritical Variance
+```{r}
+theoriticalMean <- 1/lambda
+sd <- 1/lambda
+theoriticalVariance <- sd^2
+```
+
+Theoritical Mean is `r theoriticalMean` and Theoritical Variance is `r theoriticalVariance` 
+
+#### Let's plot Sample Means against Theoritical Mean
+```{r}
+
+hist(sampleMeansNVar[1,])
+abline(v = theoriticalMean, lwd = 3, col = 'blue')
+
+```
+
+####Let's plot Sample Variance against Theoritical Variance
+```{r}
+
+hist(sampleMeansNVar[2,])
+abline(v = theoriticalVariance, lwd = 3, col = 'blue')
+
+```
+
+#### Conclusion
+We can clearly see that sample mean and sample variance is centered around theoritical mean and theoritical variance respectively. Also, based on the graphs ploted above, we can clearly see that even for a Exponential Distribution, the Sample Mean is Normally distributed.
+

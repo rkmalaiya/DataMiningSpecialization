@@ -1,0 +1,194 @@
+---
+title: "Human Activity Recognition"
+author: "Ritesh Kumar Malaiya"
+date: "August 18, 2015"
+output: 
+  html_document: 
+    fig_caption: yes
+    keep_md: yes
+    number_sections: yes
+    toc: yes
+---
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(caret, quietly = T, warn.conflicts = F)
+library(e1071, quietly = T, warn.conflicts = F)
+if(!require(RANN)) {
+  install.packages("RANN")
+  require(RANN)
+}
+if(!require(doParallel)) {
+  install.packages("doParallel")
+  require(doParallel)
+}
+if(!require(klaR)) {
+  install.packages("klaR")
+  require(klaR)
+}
+if(!require(MASS)) {
+  install.packages("MASS")
+  require(MASS)
+}
+```
+
+
+# Read Data
+
+Let's read the csv training data - pml-training.csv. This will be sub divided into training and test sets using cross validation.After a model is trained and tested on this dataset we will apply the model on the pml-testing.csv file provided.
+
+
+```{r}
+pml <- read.csv("pml-training.csv")
+pmlTestFinal <- read.csv("pml-testing.csv")
+pmlTrain <- pml
+
+```
+
+# Exploratory Data Analysis
+
+## Check Dimension of Data
+```{r}
+dim(pmlTrain)
+```
+
+## Check all possible classes
+```{r}
+unique(pmlTrain$classe)
+```
+
+## Variables format conversion
+
+1. Let's find out variables which may have been wrongly identified as factor/character but are actually numeric variables
+```{r}
+pmlTrain_class <- sapply(pmlTrain, class)
+non_integer_columns <- names(pmlTrain[, which(pmlTrain_class != 'integer' & pmlTrain_class != 'numeric')])
+non_integer_columns
+```
+
+* Let's check the data present for these columns
+```{r}
+head(pmlTrain[complete.cases(pmlTrain[, non_integer_columns]), non_integer_columns])
+
+```
+* First look in the name list we can identify that num_window, raw_timestamp_part_1, raw_timestamp_part_2, user_name,cvtd_timestamp, new_window, classe variables cannot be converted to numeric data
+```{r}
+pmlTrain <- pmlTrain[, !names(pmlTrain) %in% c("X","user_name", "new_window" ,"classe", "cvtd_timestamp", "raw_timestamp_part_1", "raw_timestamp_part_2", "num_window") ]
+```
+
+* For rest variables let's convert them to numeric variables
+
+```{r}
+pmlTrain <- data.frame(sapply(pmlTrain, as.numeric)) 
+pmlTrain$new_window <- pml$new_window
+
+```
+
+
+
+# Preprocessing of Data
+
+## Column-wise Preprocessing
+
+### Dummy Data
+Per data analysis done above, we now know that new_window variable is a factor variable and need preprocessing.
+
+```{r}
+
+d <- dummyVars(~new_window, data = pmlTrain)
+temp <- data.frame(predict(d, pmlTrain))
+
+pmlTrain$new_window.no <- temp$new_window.no
+pmlTrain$new_window.yes <- temp$new_window.yes
+
+pmlTrain <- pmlTrain[, !names(pmlTrain) %in% c("new_window") ]
+
+```
+
+### Near Zero Variables
+```{r}
+nzr <- nearZeroVar(pmlTrain, saveMetrics = T)
+```
+
+Per Near Zero Variance test, we should filter below features from the data
+```{r}
+row.names(nzr[nzr$nzv == T,])
+nzr <- nearZeroVar(pmlTrain)
+pmlTrain <- pmlTrain[,-nzr]
+```
+
+### Find Corelation
+```{r}
+highlyCor <- findCorrelation(pmlTrain, exact = F)
+pmlTrain <- pmlTrain[ , - highlyCor[complete.cases(highlyCor)]]
+
+```
+
+
+## Row-wise Preprocessing
+### Impute
+```{r}
+preObj <- preProcess(x = pmlTrain)
+
+preObj <- preProcess(x = pmlTrain, method = c("knnImpute"))
+pmlTrain_rel <- data.frame(predict(preObj, pmlTrain))
+pmlTestFinal_rel <- data.frame(predict(preObj, pmlTestFinal_rel))
+
+```
+
+### Principal Component Analysis
+```{r}
+preObj <- preProcess(x = pmlTrain, method = c("pca"))
+pmlTrain <- data.frame(predict(preObj, pmlTrain))
+
+```
+
+### Split Data into Training & Test Set
+```{r}
+
+pmlTrain$classe <- pml$classe
+pmlTrain <- pmlTrain[, !names(pmlTrain) %in% c("classe")]
+
+
+inTrain <- createDataPartition(y = pmlTrain$classe, p = .7, list = F)
+pmlTrain_rel<- pmlTrain[inTrain,]
+pmlTest<- pmlTrain[-inTrain,]
+
+```
+
+
+# Train a model
+
+## Define Train control
+```{r}
+registerDoParallel(cores=4)
+control <- trainControl(method="repeatedcv", number=2, repeats=2)
+```
+
+## Train and Plot a model
+```{r cache=TRUE}
+model <- train(classe~., data=pmlTrain_rel, method="gbm", trControl=control)
+plot(model)
+```
+
+## Prediction
+```{r}
+pmlTrain_predict <- predict(model, newdata = pmlTest[, !names(pmlTrain) %in% c("classe")])
+pmlTrain_predict <- predict(model)
+cnfM <- confusionMatrix(pmlTest$classe, pmlTrain_predict)
+cnfM
+pmlTrain_predict
+```
+Based on the confusion matrix above, we can see that the Accuracy of model is 55%.
+
+
+```{r}
+
+pml_test <- read.csv("pml-testing.csv")
+
+pml_test <- pml_test[, !names(pml_test) %in% c("X","user_name", "new_window" ,"classe", "cvtd_timestamp", "raw_timestamp_part_1", "raw_timestamp_part_2", "num_window") ]
+pml_test <- data.frame(sapply(pml_test, as.numeric)) 
+
+pmlTrain_predict <- predict(model, newdata = pml_test[, !names(pml_test) %in% c("classe")])
+
+pmlTrain_predict
+```

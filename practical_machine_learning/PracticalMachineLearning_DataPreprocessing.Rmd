@@ -1,0 +1,115 @@
+---
+title: "Practical Machine Learning - Preprocessing"
+author: "Ritesh Kumar Malaiya"
+date: "August 16, 2015"
+output: html_document
+---
+
+```{r}
+
+library(caret)
+library(kernlab)
+library(dplyr)
+
+data(spam)
+
+inTrain <- createDataPartition( y = spam$type, p = .75, list = F)
+
+training <- spam[inTrain,]
+testing <- spam[-inTrain,]
+
+```
+
+Example of Variable Skeweness
+
+```{r}
+
+hist(training$capitalAve, main = "", xlab = "ave. capital run length")
+
+```
+
+Let's use Preprocess feature of Caret Package. In below example 58th column in the actual outcome.
+
+```{r}
+
+preObj <- preProcess(x = training[,-58], method = c("center", "scale"))
+
+str(preObj)
+
+```
+
+BoxCox
+```{r}
+#install.packages("e1071")
+library(e1071)
+preObj <- preProcess(x = training[,-58], method = c("BoxCox"))
+str(preObj)
+```
+
+Impute
+```{r}
+preObj <- preProcess(x = training[,-58], method = c("knnImpute"))
+str(preObj)
+``` 
+
+Preprocessing with Principal Components
+Outliers can be bad for pca.
+
+
+```{r}
+typeColor <- (spam$type == "spam")*1+1
+prComp <- prcomp(log10(spam[,-58] + 1))
+
+
+```
+
+
+Regression using Multiple Covariates
+
+```{r}
+library(caret)
+library(ISLR)
+library(dplyr)
+
+
+data(Wage)
+
+inTrain <- createDataPartition(y=Wage$wage, p = .75, list = F)
+
+training <- Wage[inTrain,]
+testing <- Wage[-inTrain,]
+
+qplot(age, wage, colour=jobclass, data=training)
+
+qplot(age, wage, colour=education, data=training)
+
+modFit <- train(wage~age + jobclass + education, method = "lm", data=training)
+
+modFit$finalModel
+
+plot(modFit$finalModel,1)
+```
+
+Color by variables not used in the model
+
+```{r}
+qplot(modFit$finalModel$fitted.values,modFit$finalModel$residuals, colour = race, data=training)
+
+```
+
+Plot by index, means row numbers. Below means some variable is missing from model. This is because there is a pattern visible based on index
+
+```{r}
+
+plot(modFit$finalModel$residuals, pch = 19)
+
+```
+
+Plot predicted vs Actuals
+
+```{r}
+
+pred <- predict(modFit, testing)
+qplot(wage, pred, colour=year, data = testing)
+
+```

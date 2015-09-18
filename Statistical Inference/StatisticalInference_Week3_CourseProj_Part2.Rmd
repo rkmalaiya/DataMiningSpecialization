@@ -1,0 +1,52 @@
+---
+title: "Exploratory Data Analysis of Tooth Growth Dataset"
+author: "Ritesh Kumar Malaiya"
+date: "Saturday, May 23, 2015"
+output: html_document
+---
+
+
+```{r echo=FALSE}
+data(ToothGrowth)
+```
+
+####Lets look at the data
+```{r}
+head(ToothGrowth)
+summary(ToothGrowth)
+```
+
+By looking at the Summary of data we can identify that we would require ***Multi-Variate analysis*** for this data. Also, it may not be correct to analyse Mean, Variance etc without seperating data for VC and OJ.  
+
+####Summarize data separetely for VC and OJ 
+So that Summary would make more sense.
+
+```{r}
+library(plyr)
+summ <- ddply(ToothGrowth, "supp", summarise, min = min(len), max = max(len), median = median(len), quant.first = quantile(len, probs = c(0)), quant.third = quantile(len, probs = c(.75)))
+rownames(summ) <- summ[,1]
+summ[,1] <- NULL
+summ
+```
+
+####Let's compare variation in results for dosage in case of VC and OJ
+```{r}
+coplot(len ~ dose | supp, data = ToothGrowth, panel = panel.smooth, xlab = "ToothGrowth data: length vs dose, given type of supplement")
+
+```
+
+This dataset looks like paired (*if we assume that both experiments are done on same guinea pigs*), hence we will use Paired t-test (VC and OJ) to find Confidence intervals/ hypothesis tests.
+
+#### Paired T-Tests
+```{r}
+ToothGrowth.vc <- ToothGrowth[ToothGrowth$supp == 'VC','len']
+ToothGrowth.oj <- ToothGrowth[ToothGrowth$supp == 'OJ','len']
+
+t.test(ToothGrowth.oj, ToothGrowth.vc, paired = TRUE)
+```
+
+#### Conclusions. 
+Assumption: *Both experiments are done on same guinea pigs*
+Based on above analysis, we can conclude that We get: **better results if we increase dose from 0.5 to 1.0 while using Orange Juice as Delivery Method**. However, **if we use Ascorbic Acid and increase dose from 1.0 to 2.0 we get almost same results as Orange Juice**. 
+
+Also, ***T-Tests shows that overall growth while using Orange Juice is better than Ascorbic Acid***.

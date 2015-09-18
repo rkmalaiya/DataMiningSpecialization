@@ -16,6 +16,7 @@ qplot(hwy, data = mpg, facets = drv~.)
 qplot(log(displ), data = mpg, geom = "density")
 qplot(hwy, data = mpg, geom = "density", color = drv)
 qplot(displ, hwy, data = mpg,shape = drv)
+
 qplot(displ, hwy, data = mpg,color = drv)
 ggplot(mpg) + geom_point() + aes(displ, hwy)
 ggplot(mpg) + geom_point() + aes(displ, hwy) + geom_smooth()
@@ -51,3 +52,4 @@ g <- g + labs(x = expression("Displacement " [displ]))
 g <- g + labs(y = expression("City------------"))
 g <- g + labs(title = "Comparing Displacement vs City based on each year and Mileage")
 
+# In order to compare variables in dataframe we should melt data using reshape2

@@ -1,0 +1,92 @@
+---
+title: "PracticalMachineLearning"
+author: "Ritesh Kumar Malaiya"
+date: "August 15, 2015"
+output: html_document
+---
+
+Splitting Data
+```{r}
+# install.packages("caret")
+library(caret)
+library(kernlab)
+
+data(spam)
+
+inTrain <- createDataPartition(y = spam$type, p=0.75, list=F)
+
+training <- spam[inTrain,]
+testing <- spam[-inTrain, ]
+
+dim(training)
+str(training)
+summary((training))
+```
+
+
+This is like running createDataPartition 10 different times
+```{r}
+folds <- createFolds(y=spam$type, k = 10, returnTrain = T)
+
+
+folds <- createResample(y = spam)
+```
+
+Plotting Predictors
+```{r}
+# install.packages('ISLR')
+library(ISLR)
+library(ggplot2)
+library(caret)
+data("Wage")
+summary(Wage)
+inTrain <- createDataPartition(y=Wage$wage, p=0.7, list = F)
+training <- Wage[inTrain,]
+testing <- Wage[-inTrain,]
+dim(training)
+dim(testing)
+
+featurePlot(x=training[,c("age","education","jobclass")],y=training$wage, plot = "pairs" )
+
+```
+
+We can also use qplot (ggplot2)
+```{r}
+
+qplot(age, wage, data = training)
+
+```
+
+Let's break data into ranges / factors
+
+```{r}
+# install.packages('Hmisc')
+library(Hmisc)
+cutWage <- cut2(training$wage, g= 3)
+table(cutWage)
+summary(cutWage)
+```
+
+Let's plot these factors
+
+```{r}
+qplot(cutWage, age, data = training, fill = cutWage, geom = c("boxplot"))
+```
+
+```{r}
+qplot(cutWage, age, data = training, fill = cutWage, geom = c("boxplot", "jitter"))
+```
+
+lets check proportion between cutWage and jobclass
+```{r}
+
+t1 <- table(cutWage, training$jobclass)
+t1
+prop.table(t1,1)
+```
+
+Let's draw density plots
+```{r}
+qplot(wage, colour=education, data = training, geom="density")
+```
+

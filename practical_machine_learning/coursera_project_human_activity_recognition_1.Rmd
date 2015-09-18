@@ -1,0 +1,113 @@
+---
+title: "Human Activity Recognition"
+author: "Ritesh Kumar Malaiya"
+date: "August 18, 2015"
+output: 
+  html_document: 
+    fig_caption: yes
+    keep_md: yes
+    number_sections: yes
+    toc: yes
+---
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(caret, quietly = T, warn.conflicts = F)
+library(e1071, quietly = T, warn.conflicts = F)
+if(!require(RANN)) {
+  install.packages("RANN")
+  require(RANN)
+}
+if(!require(doParallel)) {
+  install.packages("doParallel")
+  require(doParallel)
+}
+if(!require(klaR)) {
+  install.packages("klaR")
+  require(klaR)
+}
+if(!require(MASS)) {
+  install.packages("MASS")
+  require(MASS)
+}
+```
+
+
+# Read Data
+
+Let's read the csv training data - pml-training.csv. This will be sub divided into training and test sets using cross validation.After a model is trained and tested on this dataset we will apply the model on the pml-testing.csv file provided.
+
+
+```{r}
+pml <- read.csv("pml-training.csv")
+pmlTestFinal <- read.csv("pml-testing.csv")
+
+pmlTrain <- pml
+
+```
+
+# Exploratory Data Analysis
+
+## Check Dimension of Data
+```{r}
+dim(pmlTrain)
+```
+
+## Check all possible classes
+```{r}
+unique(pmlTrain$classe)
+```
+
+## Variables format conversion
+
+1. Let's find out variables which may have been wrongly identified as factor/character but are actually numeric variables
+```{r}
+pmlTrain_class <- sapply(pmlTrain, class)
+non_integer_columns <- names(pmlTrain[, which(pmlTrain_class != 'integer' & pmlTrain_class != 'numeric')])
+non_integer_columns
+
+
+pmlTestFinal_rel <- pmlTestFinal[, !names(pmlTestFinal) %in% c("X","user_name", "new_window" ,"classe", "cvtd_timestamp", "raw_timestamp_part_1", "raw_timestamp_part_2", "num_window") ]
+
+
+
+```
+
+* Let's check the data present for these columns
+```{r}
+head(pmlTrain[complete.cases(pmlTrain[, non_integer_columns]), non_integer_columns])
+
+```
+* First look in the name list we can identify that num_window, raw_timestamp_part_1, raw_timestamp_part_2, user_name,cvtd_timestamp, new_window, classe variables cannot be converted to numeric data
+```{r}
+pmlTrain <- pmlTrain[, !names(pmlTrain) %in% c("X","user_name", "new_window" ,"classe", "cvtd_timestamp", "raw_timestamp_part_1", "raw_timestamp_part_2", "num_window") ]
+```
+
+* For rest variables let's convert them to numeric variables
+
+```{r}
+pmlTrain <- data.frame(sapply(pmlTrain, as.numeric)) 
+pmlTrain$classe <- pml$classe
+
+pmlTestFinal_rel <- data.frame(sapply(pmlTestFinal_rel, as.numeric)) 
+
+sum(is.infinite(pmlTrain))
+sum(is.nan(pmlTrain))
+
+inTrain <- createDataPartition(y = pmlTrain$classe, p = .7, list = F)
+pmlTrain_rel<- pmlTrain[inTrain,]
+pmlTest<- pmlTrain[-inTrain,]
+
+library(dplyr)
+
+
+
+preObj <- preProcess(x = select(pmlTrain_rel, -classe) , method = c("center", "scale", "knnImpute"))
+
+pmlTrain_rel <- data.frame(predict(preObj, pmlTrain_rel))
+
+pmlTest <- data.frame(predict(preObj, pmlTest))
+pmlTestFinal_rel <- data.frame(predict(preObj, pmlTestFinal_rel))
+
+
+```
+

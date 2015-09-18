@@ -1,0 +1,56 @@
+---
+title: "Dplyr"
+author: "Ritesh Kumar Malaiya"
+date: "Saturday, August 08, 2015"
+output: html_document
+---
+
+
+```{r}
+
+suppressMessages(library(dplyr))
+install.packages("hflights")
+library(hflights)
+
+# explore data
+data(hflights)
+head(hflights)
+
+flights <- tbl_df(hflights)
+flights
+
+```
+
+Let's try to filter both dplyr table and data frame
+
+```{r}
+filter(flights, Month == 1, DayofMonth == 1)
+head(filter(hflights, Month == 1, DayofMonth == 1))
+filter(flights, UniqueCarrier %in% c("AA", "UA"))
+```
+
+Select function
+```{r}
+
+select(flights, DepTime, ArrTime, FlightNum)
+select(flights, Year:DayofMonth, contains("Taxi"), contains("Delay"))
+
+```
+
+Chaining
+
+```{r}
+filter(select(flights, UniqueCarrier, DepDelay), DepDelay > 60)
+
+flights %>% select(UniqueCarrier, DepDelay) %>% filter(DepDelay > 60)
+
+
+```
+
+Group By
+
+```{r}
+
+flights %>% group_by(UniqueCarrier, FlightNum)
+
+```

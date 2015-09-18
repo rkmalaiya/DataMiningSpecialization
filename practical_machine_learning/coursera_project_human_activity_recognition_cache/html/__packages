@@ -1,0 +1,14 @@
+base
+lattice
+ggplot2
+caret
+e1071
+RANN
+foreach
+iterators
+doParallel
+MASS
+klaR
+survival
+gbm
+plyr

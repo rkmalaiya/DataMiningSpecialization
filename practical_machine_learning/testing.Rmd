@@ -1,0 +1,307 @@
+
+> **Background**
+
+> Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+
+> **Data **
+
+> The training data for this project are available here: 
+
+> https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+> The test data are available here: 
+
+> https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+> The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment. 
+
+> **What you should submit**
+
+> The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases. 
+
+> 1. Your submission should consist of a link to a Github repo with your R markdown and compiled HTML file describing your analysis. Please constrain the text of the writeup to < 2000 words and the number of figures to be less than 5. It will make it easier for the graders if you submit a repo with a gh-pages branch so the HTML page can be viewed online (and you always want to make it easy on graders :-).
+> 2. You should also apply your machine learning algorithm to the 20 test cases available in the test data above. Please submit your predictions in appropriate format to the programming assignment for automated grading. See the programming assignment for additional details. 
+
+> **Reproducibility **
+
+> Due to security concerns with the exchange of R code, your code will not be run during the evaluation by your classmates. Please be sure that if they download the repo, they will be able to view the compiled HTML version of your analysis. 
+
+
+# Prepare the datasets
+
+Read the training data into a data table.
+
+
+```{r}
+require(data.table)
+```
+
+```{r}
+setInternet2(TRUE)
+url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+D <- fread(url)
+```
+
+Read the testing data into a data table.
+
+
+```{r}
+url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+DTest <- fread(url)
+```
+
+Which variables in the test dataset have zero `NA`s?
+Use this tip: [finding columns with all missing values in r](http://stackoverflow.com/a/11330265).
+
+Belt, arm, dumbbell, and forearm variables that do not have any missing values in the test dataset will be **predictor candidates**.
+
+
+```{r}
+isAnyMissing <- sapply(DTest, function (x) any(is.na(x) | x == ""))
+isPredictor <- !isAnyMissing & grepl("belt|[^(fore)]arm|dumbbell|forearm", names(isAnyMissing))
+predCandidates <- names(isAnyMissing)[isPredictor]
+predCandidates
+```
+
+Subset the primary dataset to include only the **predictor candidates** and the outcome variable, `classe`.
+
+
+```{r}
+varToInclude <- c("classe", predCandidates)
+D <- D[, varToInclude, with=FALSE]
+dim(D)
+```
+
+
+```{r}
+names(D)
+```
+
+
+Make `classe` into a factor.
+
+
+```{r}
+D <- D[, classe := factor(D[, classe])]
+D[, .N, classe]
+```
+
+Split the dataset into a 60% training and 40% probing dataset.
+
+
+```{r}
+require(caret)
+```
+
+
+```{r}
+seed <- as.numeric(as.Date("2014-10-26"))
+set.seed(seed)
+inTrain <- createDataPartition(D$classe, p=0.6)
+DTrain <- D[inTrain[[1]]]
+DProbe <- D[-inTrain[[1]]]
+```
+
+Preprocess the prediction variables by centering and scaling.
+
+
+```{r}
+X <- DTrain[, predCandidates, with=FALSE]
+preProc <- preProcess(X)
+preProc
+```
+
+```{r}
+XCS <- predict(preProc, X)
+DTrainCS <- data.table(data.frame(classe = DTrain[, classe], XCS))
+```
+
+Apply the centering and scaling to the probing dataset.
+
+
+```{r}
+X <- DProbe[, predCandidates, with=FALSE]
+XCS <- predict(preProc, X)
+DProbeCS <- data.table(data.frame(classe = DProbe[, classe], XCS))
+```
+
+Check for near zero variance.
+
+
+```{r}
+nzv <- nearZeroVar(DTrainCS, saveMetrics=TRUE)
+if (any(nzv$nzv)) nzv else message("No variables with near zero variance")
+```
+
+
+Examine groups of prediction variables.
+
+
+```{r}
+histGroup <- function (data, regex) {
+  col <- grep(regex, names(data))
+  col <- c(col, which(names(data) == "classe"))
+  require(reshape2)
+  n <- nrow(data)
+  DMelted <- melt(data[, col, with=FALSE][, rownum := seq(1, n)], id.vars=c("rownum", "classe"))
+  require(ggplot2)
+  ggplot(DMelted, aes(x=classe, y=value)) +
+    geom_violin(aes(color=classe, fill=classe), alpha=1/2) +
+#     geom_jitter(aes(color=classe, fill=classe), alpha=1/10) +
+#     geom_smooth(aes(group=1), method="gam", color="black", alpha=1/2, size=2) +
+    facet_wrap(~ variable, scale="free_y") +
+    scale_color_brewer(palette="Spectral") +
+    scale_fill_brewer(palette="Spectral") +
+    labs(x="", y="") +
+    theme(legend.position="none")
+}
+histGroup(DTrainCS, "belt")
+```
+
+
+![plot of chunk histGroup](./predictionAssignment_files/figure-html/histGroup1.png) 
+
+```{r}
+histGroup(DTrainCS, "[^(fore)]arm")
+```
+
+![plot of chunk histGroup](./predictionAssignment_files/figure-html/histGroup2.png) 
+
+```{r}
+histGroup(DTrainCS, "dumbbell")
+```
+
+![plot of chunk histGroup](./predictionAssignment_files/figure-html/histGroup3.png) 
+
+```{r}
+histGroup(DTrainCS, "forearm")
+```
+
+![plot of chunk histGroup](./predictionAssignment_files/figure-html/histGroup4.png) 
+
+
+# Train a prediction model
+
+Using random forest, the out of sample error should be small.
+The error will be estimated using the 40% probing sample.
+I would be quite happy with an error estimate of 3% or less.
+
+Set up the parallel clusters.
+
+
+```{r}
+require(parallel)
+```
+
+
+```{r}
+require(doParallel)
+```
+
+```{r}
+cl <- makeCluster(detectCores() - 1)
+registerDoParallel(cl)
+```
+
+Set the control parameters.
+
+
+```{r}
+ctrl <- trainControl(classProbs=TRUE,
+                     savePredictions=TRUE,
+                     allowParallel=TRUE)
+```
+
+Fit model over the tuning parameters.
+
+
+```{r}
+method <- "rf"
+system.time(trainingModel <- train(classe ~ ., data=DTrainCS, method=method))
+```
+
+Stop the clusters.
+
+
+```{r}
+stopCluster(cl)
+```
+
+## Evaluate the model on the training dataset
+
+
+```{r}
+trainingModel
+```
+
+```{r}
+hat <- predict(trainingModel, DTrainCS)
+confusionMatrix(hat, DTrain[, classe])
+```
+
+## Evaluate the model on the probing dataset
+
+
+```{r}
+hat <- predict(trainingModel, DProbeCS)
+confusionMatrix(hat, DProbeCS[, classe])
+```
+
+## Display the final model
+
+
+```{r}
+varImp(trainingModel)
+```
+
+```{r}
+trainingModel$finalModel
+```
+
+**The estimated error rate is less than 1%.**
+
+Save training model object for later.
+
+
+```{r}
+save(trainingModel, file="trainingModel.RData")
+```
+
+
+# Predict on the test data
+
+Load the training model.
+
+
+```{r}
+load(file="trainingModel.RData", verbose=TRUE)
+```
+
+Get predictions and evaluate.
+
+
+```{r}
+DTestCS <- predict(preProc, DTest[, predCandidates, with=FALSE])
+hat <- predict(trainingModel, DTestCS)
+DTest <- cbind(hat , DTest)
+subset(DTest, select=names(DTest)[grep("belt|[^(fore)]arm|dumbbell|forearm", names(DTest), invert=TRUE)])
+```
+
+
+## Submission to Coursera
+
+Write submission files to `predictionAssignment_files/answers`.
+
+
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  path <- "predictionAssignment_files/answers"
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=file.path(path, filename),quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(hat)
+```

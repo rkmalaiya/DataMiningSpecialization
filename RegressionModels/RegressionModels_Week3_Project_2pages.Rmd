@@ -1,0 +1,75 @@
+---
+title: "Impact of various factors(specially transmission) on MPG in Cars"
+output:
+  pdf_document: default
+  html_document:
+    fig_caption: yes
+    keep_md: yes
+    number_sections: yes
+    toc: yes
+---
+# Executive Summary
+For a Car having same weigth, Manual gives better mileage than Automatic. Also, for every increase in weight and / or qsec, corresponding increase in Manual is in range of > 2.9358 and < 9.863.
+
+# Evaluate Dataset
+```{r warning =FALSE, echo=FALSE}
+library(datasets)
+data(mtcars)
+```
+## FIT MODEL
+### Identify Corelation
+Let's try to observe the correlation between mpg and other variables (except cyl, am and vs, since these are categorical variable)
+```{r echo=FALSE}
+mtcars$am[mtcars$am == 0] = "Automatic"
+mtcars$am[mtcars$am == 1] = "Manual"
+
+mtcars$am <- factor(mtcars$am)
+mtcars$gear <- factor(mtcars$gear)
+mtcars$vs <- factor(mtcars$vs)
+mtcars$cyl <- factor(mtcars$cyl)
+
+mpg <- mtcars$mpg
+
+variables <- c('hp', 'drat', 'wt', 'disp', 'carb', 'qsec')
+
+for (i in 1:length(variables)) {
+ mtcars[,i] <- as.numeric(mtcars[,i])  
+}
+
+sapply(variables,function(x) {
+  cor(y = mpg, x = mtcars[,x], use = "complete")
+})
+
+```
+### Fit a Linear Model
+Based on correlation found above let's use AIC to choose attributes for Linear Model
+```{r message=FALSE, results='hide'}
+library(MASS)
+lm_initial <- lm(mpg ~ am + hp + drat + wt + disp + carb + qsec, data = mtcars)
+step <- stepAIC(lm_initial, direction="both")
+```
+Model recommendation by AIC
+```{r results='markup'}
+step$anova # display results
+```
+From above analysis, we can conclude that below should be the final model
+```{r}
+lm <- lm(mpg ~ am + wt + qsec, data = mtcars)
+```
+## Plot of Model
+```{r echo=FALSE}
+par(mfrow=c(2,2))
+
+plot(lm)
+```
+## Coefficients as per the model
+```{r echo=FALSE}
+
+summary(lm$coef)
+```
+# Questions of Interest
+- **Is an automatic or manual transmission better for MPG**
+From above coefficients we can understand that ***Manual Transmission is better*** than Automatic Transmission.
+- **Quantify the MPG difference between automatic and manual transmissions**
+If we keep weight and qsec constant (mean) then extra milega that will be provided by Manual as compared to Automatic is `r lm$coef[2]`. However, for every increase in weight by single unit gain in mileage is `r lm$coef[1] + lm$coef[2] + lm$coef[3]` and for every increase in qsec gain in mileage is `r lm$coef[1] + lm$coef[2] + lm$coef[4]` more than Automatic.
+
